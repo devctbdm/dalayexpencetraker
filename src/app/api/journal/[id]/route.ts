@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { getDb } from "@/db"
 import { journalEntries } from "@/db/schema"
-import { apiDatabaseError, apiError } from "@/lib/api"
+import { requireCurrentUser } from "@/lib/auth"
+import { apiAuthError, apiError } from "@/lib/api"
 
 export const runtime = "nodejs"
 
@@ -21,10 +22,16 @@ export async function DELETE(
   }
 
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
     const [deleted] = await db
       .delete(journalEntries)
-      .where(eq(journalEntries.id, parsedId.data))
+      .where(
+        and(
+          eq(journalEntries.id, parsedId.data),
+          eq(journalEntries.userId, user.id)
+        )
+      )
       .returning({ id: journalEntries.id })
 
     if (!deleted) {
@@ -33,6 +40,6 @@ export async function DELETE(
 
     return new Response(null, { status: 204 })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }

@@ -1,9 +1,10 @@
-import { desc } from "drizzle-orm"
+import { desc, eq } from "drizzle-orm"
 import type { NextRequest } from "next/server"
 
 import { getDb } from "@/db"
 import { journalEntries } from "@/db/schema"
-import { apiDatabaseError, apiError, apiSuccess, readJson } from "@/lib/api"
+import { requireCurrentUser } from "@/lib/auth"
+import { apiAuthError, apiError, apiSuccess, readJson } from "@/lib/api"
 import type { JournalRecord } from "@/lib/tracker"
 import { journalPayloadSchema } from "@/lib/validators"
 
@@ -33,6 +34,7 @@ function toJournalRecord(row: JournalRow): JournalRecord {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireCurrentUser()
     const requestedLimit = Number(request.nextUrl.searchParams.get("limit"))
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.floor(requestedLimit), 1), 60)
@@ -41,12 +43,13 @@ export async function GET(request: NextRequest) {
     const entries = await db
       .select()
       .from(journalEntries)
+      .where(eq(journalEntries.userId, user.id))
       .orderBy(desc(journalEntries.entryDate), desc(journalEntries.updatedAt))
       .limit(limit)
 
     return apiSuccess({ entries: entries.map(toJournalRecord) })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }
 
@@ -60,10 +63,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
     const [entry] = await db
       .insert(journalEntries)
       .values({
+        userId: user.id,
         entryDate: parsed.data.entryDate,
         title: parsed.data.title,
         content: parsed.data.content,
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: journalEntries.entryDate,
+        target: [journalEntries.userId, journalEntries.entryDate],
         set: {
           title: parsed.data.title,
           content: parsed.data.content,
@@ -83,6 +88,6 @@ export async function POST(request: Request) {
 
     return apiSuccess({ entry: toJournalRecord(entry) }, 201)
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   RiAddLine,
   RiAlertLine,
@@ -52,6 +53,12 @@ import {
   type ExpenseRecord,
   type JournalRecord,
 } from "@/lib/tracker"
+
+export type DashboardUser = {
+  id: string
+  name: string
+  email: string
+}
 
 type Drawer = "expense" | "journal" | null
 type ConnectionState = "checking" | "connected" | "offline"
@@ -333,7 +340,23 @@ function WeekChart({ expenses, activeDate }: { expenses: ExpenseRecord[]; active
   )
 }
 
-export function DashboardClient() {
+export function DashboardClient({
+  user,
+  isPreview = false,
+}: {
+  user: DashboardUser
+  isPreview?: boolean
+}) {
+  const router = useRouter()
+  const firstName = user.name.trim().split(/\s+/)[0] || "there"
+  const userInitials = user.name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "DT"
   const [expenses, setExpenses] = React.useState<ExpenseRecord[]>(() =>
     sortExpenses(demoExpenses)
   )
@@ -359,12 +382,33 @@ export function DashboardClient() {
   React.useEffect(() => {
     let active = true
 
+    if (isPreview) {
+      const timeout = window.setTimeout(() => {
+        if (!active) return
+        const localExpenses = parseStoredRecords<ExpenseRecord[]>(EXPENSE_STORAGE_KEY)
+        const localJournal = parseStoredRecords<JournalRecord[]>(JOURNAL_STORAGE_KEY)
+        if (localExpenses?.length) setExpenses(sortExpenses(localExpenses))
+        if (localJournal?.length) setJournalEntries(sortJournal(localJournal))
+        setConnection("offline")
+        setHasLoaded(true)
+      }, 0)
+      return () => {
+        active = false
+        window.clearTimeout(timeout)
+      }
+    }
+
     async function loadRecords() {
       try {
         const [expenseResponse, journalResponse] = await Promise.all([
           fetch("/api/expenses?limit=100", { cache: "no-store" }),
           fetch("/api/journal?limit=30", { cache: "no-store" }),
         ])
+
+        if (expenseResponse.status === 401 || journalResponse.status === 401) {
+          if (active) router.replace("/login")
+          return
+        }
 
         if (!expenseResponse.ok || !journalResponse.ok) {
           throw new Error("Cloud data is unavailable")
@@ -395,7 +439,7 @@ export function DashboardClient() {
     return () => {
       active = false
     }
-  }, [])
+  }, [isPreview, router])
 
   React.useEffect(() => {
     if (!hasLoaded) return
@@ -546,6 +590,10 @@ export function DashboardClient() {
         }),
       })
 
+      if (response.status === 401) {
+        router.replace("/login")
+        return
+      }
       if (!response.ok) throw new Error("The expense could not be synced")
       const data = (await response.json()) as { expense: ExpenseRecord }
       setExpenses((current) =>
@@ -646,6 +694,10 @@ export function DashboardClient() {
       const response = await fetch(`/api/expenses/${expense.id}`, {
         method: "DELETE",
       })
+      if (response.status === 401) {
+        router.replace("/login")
+        return
+      }
       if (!response.ok && response.status !== 404) {
         throw new Error("Delete request failed")
       }
@@ -655,11 +707,27 @@ export function DashboardClient() {
     }
   }
 
+  async function handleLogout() {
+    if (isPreview) {
+      setToast("This is a local preview. Connect Supabase to create an account.")
+      return
+    }
+
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } finally {
+      router.replace("/login")
+      router.refresh()
+    }
+  }
+
   return (
     <SidebarProvider defaultOpen>
       <AppSidebar
+        user={user}
         onAddExpense={openExpenseDrawer}
         onWriteEntry={openJournalDrawer}
+        onLogout={() => void handleLogout()}
       />
       <SidebarInset className="min-w-0 bg-[#F7F8FC]">
         <header className="sticky top-0 z-20 flex h-[69px] shrink-0 items-center border-b border-[#E9ECF2] bg-[#F7F8FC]/95 px-4 backdrop-blur md:px-7">
@@ -695,11 +763,11 @@ export function DashboardClient() {
             </Button>
             <button
               type="button"
-              aria-label="Open Alex Morgan profile"
-              onClick={() => setToast("Profile settings are coming next.")}
+              aria-label={`Open ${user.name} profile`}
+              onClick={() => setToast(`${user.email} is signed in.`)}
               className="ml-1 flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-[#F7B696] to-[#D476A6] text-[10px] font-bold text-white shadow-sm"
             >
-              AM
+              {userInitials}
             </button>
           </div>
         </header>
@@ -715,7 +783,7 @@ export function DashboardClient() {
                   Monday, 7 September
                 </div>
                 <h1 className="font-heading text-[29px] font-semibold tracking-[-0.045em] text-[#1D2739] sm:text-[34px]">
-                  Good morning, Alex <span className="inline-block">👋</span>
+                  Good morning, {firstName} <span className="inline-block">👋</span>
                 </h1>
                 <p className="mt-1.5 text-sm text-[#7B879A] sm:text-[15px]">
                   Here&apos;s a gentle look at your day so far.

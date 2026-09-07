@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { findOrCreateCategory } from "@/db/categories"
 import { getDb } from "@/db"
 import { expenses } from "@/db/schema"
-import { apiDatabaseError, apiError, apiSuccess, readJson } from "@/lib/api"
+import { requireCurrentUser } from "@/lib/auth"
+import { apiAuthError, apiError, apiSuccess, readJson } from "@/lib/api"
 import type { ExpenseRecord } from "@/lib/tracker"
 import { expenseUpdateSchema } from "@/lib/validators"
 
@@ -66,12 +67,13 @@ export async function PATCH(
   }
 
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
     const update = parsed.data
     let category: { id: string; name: string; color: string } | undefined
 
     if (update.category) {
-      category = await findOrCreateCategory(db, update.category)
+      category = await findOrCreateCategory(db, user.id, update.category)
     }
 
     const [updated] = await db
@@ -89,7 +91,7 @@ export async function PATCH(
           : {}),
         updatedAt: new Date(),
       })
-      .where(eq(expenses.id, id.data))
+      .where(and(eq(expenses.id, id.data), eq(expenses.userId, user.id)))
       .returning()
 
     if (!updated) {
@@ -100,7 +102,7 @@ export async function PATCH(
       // The update did not alter category. Look it up so the returned record
       // remains complete without making the client refetch its entire list.
       const current = await db.query.expenses.findFirst({
-        where: eq(expenses.id, id.data),
+        where: and(eq(expenses.id, id.data), eq(expenses.userId, user.id)),
         with: { category: true },
       })
 
@@ -115,7 +117,7 @@ export async function PATCH(
       expense: toExpenseRecord(updated, category.name, category.color),
     })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }
 
@@ -129,10 +131,11 @@ export async function DELETE(
   }
 
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
     const [deleted] = await db
       .delete(expenses)
-      .where(eq(expenses.id, id.data))
+      .where(and(eq(expenses.id, id.data), eq(expenses.userId, user.id)))
       .returning({ id: expenses.id })
 
     if (!deleted) {
@@ -141,6 +144,6 @@ export async function DELETE(
 
     return new Response(null, { status: 204 })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }

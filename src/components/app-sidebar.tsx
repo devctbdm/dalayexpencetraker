@@ -6,8 +6,8 @@ import {
   RiBarChartBoxLine,
   RiBookOpenLine,
   RiCalendarCheckLine,
-  RiCompass3Line,
   RiLayoutGridLine,
+  RiLogoutBoxRLine,
   RiQuestionLine,
   RiSettings3Line,
   RiWallet3Line,
@@ -27,8 +27,23 @@ import {
 } from "@/components/ui/sidebar"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: {
+    name: string
+    email: string
+  }
   onAddExpense?: () => void
   onWriteEntry?: () => void
+  onLogout?: () => void
+}
+
+function initialsFor(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
 }
 
 const navigation = [
@@ -39,10 +54,14 @@ const navigation = [
 ]
 
 export function AppSidebar({
+  user,
   onAddExpense,
   onWriteEntry,
+  onLogout,
   ...props
 }: AppSidebarProps) {
+  const displayName = user?.name ?? "Alex Morgan"
+  const initials = initialsFor(displayName) || "AM"
   return (
     <Sidebar
       collapsible="icon"
@@ -179,22 +198,31 @@ export function AppSidebar({
           <SidebarMenuItem className="mt-2 border-t border-[#263752] pt-2">
             <SidebarMenuButton
               size="lg"
-              tooltip="Alex Morgan"
+              tooltip={displayName}
               render={<button type="button" />}
               className="h-12 rounded-lg px-1.5 text-[#D7E0F0] hover:bg-[#1D2B43] hover:text-white"
             >
               <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F7B696] to-[#D476A6] text-[11px] font-bold text-white">
-                AM
+                {initials}
               </span>
               <span className="flex min-w-0 flex-1 flex-col text-left leading-tight">
                 <span className="truncate text-[12px] font-medium text-white">
-                  Alex Morgan
+                  {displayName}
                 </span>
                 <span className="truncate text-[10px] text-[#91A1B9]">
-                  Personal workspace
+                  {user?.email ?? "Personal workspace"}
                 </span>
               </span>
-              <RiCompass3Line className="size-4 text-[#91A1B9]" />
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Sign out"
+              onClick={onLogout}
+              className="h-9 rounded-lg text-[#B1BDD0] hover:bg-[#1D2B43] hover:text-white"
+            >
+              <RiLogoutBoxRLine className="size-[17px]" />
+              <span>Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

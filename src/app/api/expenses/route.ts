@@ -4,7 +4,8 @@ import type { NextRequest } from "next/server"
 import { findOrCreateCategory } from "@/db/categories"
 import { getDb } from "@/db"
 import { expenseCategories, expenses } from "@/db/schema"
-import { apiDatabaseError, apiError, apiSuccess, readJson } from "@/lib/api"
+import { requireCurrentUser } from "@/lib/auth"
+import { apiAuthError, apiError, apiSuccess, readJson } from "@/lib/api"
 import type { ExpenseRecord } from "@/lib/tracker"
 import { expensePayloadSchema } from "@/lib/validators"
 
@@ -44,6 +45,7 @@ function expenseDate(date: string | undefined) {
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireCurrentUser()
     const requestedLimit = Number(request.nextUrl.searchParams.get("limit"))
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100)
@@ -66,12 +68,13 @@ export async function GET(request: NextRequest) {
         expenseCategories,
         eq(expenses.categoryId, expenseCategories.id)
       )
+      .where(eq(expenses.userId, user.id))
       .orderBy(desc(expenses.spentAt), desc(expenses.recordedAt))
       .limit(limit)
 
     return apiSuccess({ expenses: rows.map(toExpenseRecord) })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }
 
@@ -86,11 +89,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
-    const category = await findOrCreateCategory(db, parsed.data.category)
+    const category = await findOrCreateCategory(
+      db,
+      user.id,
+      parsed.data.category
+    )
     const [created] = await db
       .insert(expenses)
       .values({
+        userId: user.id,
         categoryId: category.id,
         description: parsed.data.description,
         amount: parsed.data.amount.toFixed(2),
@@ -112,6 +121,6 @@ export async function POST(request: Request) {
       201
     )
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }

@@ -1,10 +1,11 @@
-import { asc } from "drizzle-orm"
+import { asc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { findOrCreateCategory } from "@/db/categories"
 import { getDb } from "@/db"
 import { expenseCategories } from "@/db/schema"
-import { apiDatabaseError, apiError, apiSuccess, readJson } from "@/lib/api"
+import { requireCurrentUser } from "@/lib/auth"
+import { apiAuthError, apiError, apiSuccess, readJson } from "@/lib/api"
 
 export const runtime = "nodejs"
 
@@ -14,6 +15,7 @@ const categorySchema = z.object({
 
 export async function GET() {
   try {
+    const user = await requireCurrentUser()
     const db = getDb()
     const categories = await db
       .select({
@@ -23,6 +25,7 @@ export async function GET() {
         createdAt: expenseCategories.createdAt,
       })
       .from(expenseCategories)
+      .where(eq(expenseCategories.userId, user.id))
       .orderBy(asc(expenseCategories.name))
 
     return apiSuccess({
@@ -32,7 +35,7 @@ export async function GET() {
       })),
     })
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }
 
@@ -45,7 +48,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const category = await findOrCreateCategory(getDb(), parsed.data.name)
+    const user = await requireCurrentUser()
+    const category = await findOrCreateCategory(getDb(), user.id, parsed.data.name)
     return apiSuccess(
       {
         category: {
@@ -56,6 +60,6 @@ export async function POST(request: Request) {
       201
     )
   } catch (error) {
-    return apiDatabaseError(error)
+    return apiAuthError(error)
   }
 }

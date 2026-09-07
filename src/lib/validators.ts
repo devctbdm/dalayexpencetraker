@@ -1,5 +1,39 @@
 import { z } from "zod"
 
+const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address.")
+
+const passwordSchema = z
+  .string()
+  .min(8, "Use at least 8 characters.")
+  .max(128, "Use no more than 128 characters.")
+  .regex(/[a-z]/, "Include a lowercase letter.")
+  .regex(/[A-Z]/, "Include an uppercase letter.")
+  .regex(/[0-9]/, "Include a number.")
+
+export const registerPayloadSchema = z.object({
+  name: z.string().trim().min(2, "Enter your name.").max(120),
+  email: emailSchema,
+  password: passwordSchema,
+})
+
+export const loginPayloadSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, "Enter your password.").max(128),
+})
+
+export const forgotPasswordPayloadSchema = z.object({
+  email: emailSchema,
+})
+
+export const resetPasswordPayloadSchema = z.object({
+  token: z.string().min(40, "That reset link is invalid.").max(200),
+  password: passwordSchema,
+})
+
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date.")
