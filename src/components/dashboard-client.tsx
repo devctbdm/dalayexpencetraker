@@ -34,6 +34,7 @@ import {
 } from "@remixicon/react"
 
 import { AppSidebar } from "@/components/app-sidebar"
+import { CategoryDonutChart, SpendingTrendChart } from "@/components/dashboard-charts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -124,13 +125,6 @@ function formatMoney(amount: number) {
   return `৳${new Intl.NumberFormat("en-BD", {
     maximumFractionDigits: 0,
   }).format(amount)}`
-}
-
-function formatCompactMoney(amount: number) {
-  if (amount >= 1000) {
-    return `৳${(amount / 1000).toFixed(amount >= 10_000 ? 0 : 1)}k`
-  }
-  return formatMoney(amount)
 }
 
 function dayKey(value: string) {
@@ -266,77 +260,6 @@ function MetricCard({
         <span className="text-[#98A1B2]">vs. last week</span>
       </div>
     </section>
-  )
-}
-
-function WeekChart({ expenses, activeDate }: { expenses: ExpenseRecord[]; activeDate: string }) {
-  const days = React.useMemo(() => {
-    const anchor = new Date(`${activeDate}T12:00:00.000Z`)
-    return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(anchor)
-      date.setUTCDate(anchor.getUTCDate() - (6 - index))
-      const key = date.toISOString().slice(0, 10)
-      const amount = expenses
-        .filter((expense) => dayKey(expense.spentAt) === key)
-        .reduce((total, expense) => total + expense.amount, 0)
-      return {
-        key,
-        amount,
-        label: new Intl.DateTimeFormat("en-US", {
-          weekday: "short",
-          timeZone: "UTC",
-        }).format(date),
-      }
-    })
-  }, [activeDate, expenses])
-
-  const maximum = Math.max(...days.map((day) => day.amount), 1)
-
-  return (
-    <div className="mt-6">
-      <div className="relative flex h-40 items-end gap-2 border-b border-[#EDF0F5] pt-5 sm:h-48 sm:gap-3">
-        <div className="pointer-events-none absolute inset-x-0 top-[25%] border-t border-dashed border-[#EDF0F5]" />
-        <div className="pointer-events-none absolute inset-x-0 top-[55%] border-t border-dashed border-[#EDF0F5]" />
-        {days.map((day) => {
-          const height = day.amount ? Math.max((day.amount / maximum) * 100, 13) : 4
-          const isCurrent = day.key === activeDate
-          return (
-            <div
-              className="group relative z-10 flex min-w-0 flex-1 flex-col justify-end"
-              key={day.key}
-            >
-              {day.amount > 0 && (
-                <span className="pointer-events-none absolute -top-5 left-1/2 hidden -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-[#5E687B] group-hover:block sm:text-[11px]">
-                  {formatCompactMoney(day.amount)}
-                </span>
-              )}
-              <div
-                className={`w-full rounded-t-md transition-all duration-300 ${
-                  isCurrent
-                    ? "bg-[#6882FF] shadow-[0_5px_12px_rgba(93,121,245,0.25)]"
-                    : day.amount
-                      ? "bg-[#DCE4FF] group-hover:bg-[#AFC0FF]"
-                      : "bg-[#EEF1F6]"
-                }`}
-                style={{ height: `${height}%` }}
-              />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-2 flex gap-2 sm:gap-3">
-        {days.map((day) => (
-          <span
-            className={`min-w-0 flex-1 text-center text-[10px] font-medium sm:text-[11px] ${
-              day.key === activeDate ? "text-[#5876F4]" : "text-[#9AA3B3]"
-            }`}
-            key={day.key}
-          >
-            {day.label}
-          </span>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -482,19 +405,6 @@ export function DashboardClient({
       .map(([name, values]) => ({ name, ...values }))
       .sort((a, b) => b.amount - a.amount)
   }, [dayExpenses])
-
-  const donutGradient = React.useMemo(() => {
-    if (!categoryBreakdown.length || !totalSpent) return "#E9EDF4 0deg 360deg"
-    let degree = 0
-    return categoryBreakdown
-      .map((category) => {
-        const end = degree + (category.amount / totalSpent) * 360
-        const value = `${category.color} ${degree.toFixed(2)}deg ${end.toFixed(2)}deg`
-        degree = end
-        return value
-      })
-      .join(", ")
-  }, [categoryBreakdown, totalSpent])
 
   const visibleExpenses = React.useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -851,46 +761,11 @@ export function DashboardClient({
           </section>
 
           <section id="insights" className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.58fr)_minmax(300px,0.82fr)] scroll-mt-24">
-            <article className="overflow-hidden rounded-2xl border border-[#E7EAF1] bg-white p-4 shadow-[0_2px_4px_rgba(33,49,80,0.02)] sm:p-5 lg:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold tracking-[-0.025em] text-[#273247]">
-                    Spending overview
-                  </p>
-                  <p className="mt-1 text-xs text-[#8993A4]">
-                    Your daily spend across the last 7 days
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setToast("Weekly report export is ready in the connected app.")}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#F5F7FB] px-2.5 text-[11px] font-semibold text-[#6D788B] transition-colors hover:bg-[#EAEFFF] hover:text-[#5D79F0]"
-                >
-                  This week <RiArrowDownLine className="size-3.5" />
-                </button>
-              </div>
-              <WeekChart expenses={expenses} activeDate={activeDate} />
-              <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-[#EFF1F5] pt-4 text-xs">
-                <span className="text-[#8B95A7]">
-                  Average daily spend
-                  <strong className="ml-1 font-semibold text-[#38465D]">
-                    {formatMoney(
-                      expenses.length
-                        ? expenses.reduce((sum, expense) => sum + expense.amount, 0) /
-                            Math.max(
-                              new Set(expenses.map((expense) => dayKey(expense.spentAt))).size,
-                              1
-                            )
-                        : 0
-                    )}
-                  </strong>
-                </span>
-                <span className="inline-flex items-center font-semibold text-[#30A37E]">
-                  <RiArrowUpLine className="mr-0.5 size-3.5" /> 9.8%
-                  <span className="ml-1 font-normal text-[#9AA3B2]">from last week</span>
-                </span>
-              </div>
-            </article>
+            <SpendingTrendChart
+              expenses={expenses}
+              activeDate={activeDate}
+              dailyBudget={DAILY_BUDGET}
+            />
 
             <article className="rounded-2xl border border-[#E7EAF1] bg-white p-4 shadow-[0_2px_4px_rgba(33,49,80,0.02)] sm:p-5 lg:p-6">
               <div className="flex items-start justify-between">
@@ -915,17 +790,10 @@ export function DashboardClient({
                 </button>
               </div>
               <div className="mt-4 flex items-center gap-5">
-                <div
-                  className="relative flex size-[130px] shrink-0 items-center justify-center rounded-full sm:size-[140px]"
-                  style={{ background: `conic-gradient(${donutGradient})` }}
-                >
-                  <div className="flex size-[96px] flex-col items-center justify-center rounded-full bg-white sm:size-[104px]">
-                    <span className="text-[10px] font-medium text-[#909AAD]">Total</span>
-                    <strong className="mt-0.5 text-[18px] font-semibold tracking-[-0.04em] text-[#273247]">
-                      {formatCompactMoney(totalSpent)}
-                    </strong>
-                  </div>
-                </div>
+                <CategoryDonutChart
+                  categories={categoryBreakdown}
+                  total={totalSpent}
+                />
                 <div className="min-w-0 flex-1 space-y-3">
                   {categoryBreakdown.slice(0, 4).map((category) => (
                     <div className="flex items-center gap-2.5" key={category.name}>

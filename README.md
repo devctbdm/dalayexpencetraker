@@ -12,7 +12,7 @@ A mobile-responsive personal dashboard for capturing everyday expenses and short
 - Daily expense tracking for descriptions, exact numeric amounts, categories, payment method, spend time, and record time
 - One journal reflection per user per calendar day with title, mood, content, creation, and update timestamps
 - Interactive add-expense and write-entry panels
-- Recent activity filtering, category breakdown, budget progress, and a 7-day spending chart
+- Recent activity filtering, Recharts-powered 7/30-day daily spending trend, category donut, and budget progress
 - Browser-only dashboard preview fallback when Supabase is not configured
 
 ## Local setup
