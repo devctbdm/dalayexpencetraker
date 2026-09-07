@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // Arena previews are served through a sandbox-specific e2b.app subdomain.
+  allowedDevOrigins: ["*.e2b.app"],
+}
 
-export default nextConfig;
+export default nextConfig
