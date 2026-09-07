@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DailyTrack
 
-## Getting Started
+A mobile-responsive personal dashboard for capturing everyday expenses and short daily journal reflections. The interface is built with **Next.js 16.3.4**, Tailwind CSS, and Shadcn base components; the API routes use **Drizzle ORM** with a Supabase PostgreSQL connection.
 
-First, run the development server:
+## Features
+
+- Responsive admin-style dashboard with the Shadcn `sidebar-03` pattern and a mobile drawer sidebar
+- Daily expense tracking for descriptions, exact numeric amounts, categories, payment method, spend time, and record time
+- One journal reflection per calendar day with title, mood, content, creation, and update timestamps
+- Interactive add-expense and write-entry panels
+- Recent activity filtering, category breakdown, budget progress, and 7-day spending chart
+- Browser-only preview fallback when Supabase is not configured, so the UI is usable immediately
+- Production API routes for expense/journal create, read, update/delete, validation, and error handling
+
+## Local setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+corepack pnpm install
+cp .env.example .env.local
+# Add your Supabase PostgreSQL connection string to DATABASE_URL
+corepack pnpm db:generate
+corepack pnpm db:migrate
+corepack pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit [http://localhost:3000](http://localhost:3000). The root route redirects to `/dashboard`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Supabase and Drizzle
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. In Supabase, open **Connect** and copy the PostgreSQL URI. A transaction pooler URI is generally a good fit for serverless hosting.
+2. Put it in `.env.local` as `DATABASE_URL`. Do not expose that URL with a `NEXT_PUBLIC_` prefix.
+3. Generate a migration after schema changes with `corepack pnpm db:generate`.
+4. Apply migrations with `corepack pnpm db:migrate`.
 
-## Learn More
+The Drizzle tables live in [`src/db/schema.ts`](src/db/schema.ts):
 
-To learn more about Next.js, take a look at the following resources:
+- `expense_categories` stores reusable category names and colors.
+- `expenses` stores a description, `NUMERIC(12,2)` cost, category relation, currency, optional note/payment method, `spent_at`, `recorded_at`, and `updated_at`.
+- `journal_entries` stores one dated reflection with content, mood, and timestamp metadata.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The `postgres` driver is configured with prepared statements disabled, which is compatible with Supabase poolers.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API routes
 
-## Deploy on Vercel
+| Route | Methods | Purpose |
+| --- | --- | --- |
+| `/api/categories` | `GET`, `POST` | List or add reusable expense categories |
+| `/api/expenses` | `GET`, `POST` | List or record expenses |
+| `/api/expenses/[id]` | `PATCH`, `DELETE` | Update or remove one expense |
+| `/api/journal` | `GET`, `POST` | List journal entries or create/update the entry for a day |
+| `/api/journal/[id]` | `DELETE` | Remove a journal entry |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+All write routes validate input with Zod. When `DATABASE_URL` is absent, API routes return a clear `503` response; the dashboard intentionally falls back to browser storage for a polished local preview.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Useful commands
+
+```bash
+corepack pnpm dev          # development server
+corepack pnpm build        # production build
+corepack pnpm lint         # lint the app
+corepack pnpm db:generate  # create Drizzle migration files
+corepack pnpm db:migrate   # apply Drizzle migrations
+corepack pnpm db:studio    # open Drizzle Studio
+```
